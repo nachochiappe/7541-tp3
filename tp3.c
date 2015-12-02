@@ -35,23 +35,19 @@ grafo_t* grafo_crear(hash_t* hash_ciudades, hash_t* hash_rutas) {
 	grafo_t* grafo = malloc(sizeof(grafo_t));
 	if (!grafo) return NULL;
 	size_t cantidad_vertices = hash_cantidad(hash_ciudades);
-	ruta_t** matriz = malloc(sizeof(ruta_t*) * cantidad_vertices);
+	// Creo una matriz de |V| x |V| (uso calloc para que no tire errores valgrind de inicializacion)
+	ruta_t** matriz = calloc(cantidad_vertices * cantidad_vertices, sizeof(ruta_t));
 	if (!matriz) return NULL;
-	for (int i = 0; i < cantidad_vertices; i++) {
-		matriz[i] = malloc(sizeof(ruta_t*) * cantidad_vertices);
-		if (!matriz[i]) return NULL;
-		/*for (int j = 0; j < cantidad_vertices; j++) {
-			// Dejo la matriz en NULL
-			matriz[i][j] = NULL;
-		}*/
-	}
+    /*for (int i = 0; i < cantidad_vertices * cantidad_vertices; i++){
+        matriz[i] = 0;
+    }*/
 	hash_iter_t* iter = hash_iter_crear(hash_rutas);
 	while (!hash_iter_al_final(iter)){
 		ruta_t* ruta = hash_obtener(hash_rutas, hash_iter_ver_actual(iter));
-		printf("%i\n", atoi(ruta->id));
-		printf("%i\n", atoi(ruta->id_ciudad_1));
-		printf("%i\n", atoi(ruta->id_ciudad_2));
-		matriz[atoi(ruta->id_ciudad_1) - 1][atoi(ruta->id_ciudad_2) - 1] = *ruta;
+		size_t id_ciudad_1 = strtoul(ruta->id_ciudad_1, NULL, 10);
+		size_t id_ciudad_2 = strtoul(ruta->id_ciudad_2, NULL, 10);
+		// La forma de acceder a (x, y) en la matriz es: (x - 1) * cant_columnas + (y - 1)
+		matriz[(id_ciudad_1 - 1) * cantidad_vertices + (id_ciudad_2 - 1)] = ruta;
 		grafo->aristas++;
 		hash_iter_avanzar(iter);
 	}
@@ -62,9 +58,6 @@ grafo_t* grafo_crear(hash_t* hash_ciudades, hash_t* hash_rutas) {
 }
 
 void grafo_destruir(grafo_t* grafo) {
-	for (int i = 0; i < grafo->vertices; i++) {
-		free(grafo->matriz[i]);
-	}
 	free(grafo->matriz);
 	free(grafo);
 }
@@ -73,8 +66,8 @@ ciudad_t* crear_ciudad(char* id, char* nombre, char* longitud, char* latitud, ch
     ciudad_t* ciudad = malloc(sizeof(ciudad_t));
 	if (!ciudad)
 		return NULL;
-	ciudad->id = id;
-	ciudad->nombre = nombre;
+	ciudad->id = strcpy(malloc(strlen(id) + 1), id);
+	ciudad->nombre = strcpy(malloc(strlen(nombre) + 1), nombre);
 	ciudad->longitud = atof(longitud);
 	ciudad->latitud = atof(latitud);
 	ciudad->provincia = (unsigned long int) provincia;
@@ -83,6 +76,11 @@ ciudad_t* crear_ciudad(char* id, char* nombre, char* longitud, char* latitud, ch
 }
 
 void destruir_ciudad(void* dato){
+    if (dato){
+        ciudad_t* ciudad = dato;
+        free(ciudad->id);
+        free(ciudad->nombre);
+    }
     free(dato);
 }
 
@@ -90,15 +88,21 @@ ruta_t* crear_ruta(char* id, char* id_ciudad_1, char* id_ciudad_2, char* puntaje
     ruta_t* ruta = malloc(sizeof(ruta_t));
 	if (!ruta)
 		return NULL;
-	ruta->id = id;
-	ruta->id_ciudad_1 = id_ciudad_1;
-	ruta->id_ciudad_2 = id_ciudad_2;
+	ruta->id = strcpy(malloc(strlen(id) + 1), id);
+	ruta->id_ciudad_1 = strcpy(malloc(strlen(id_ciudad_1) + 1), id_ciudad_1);
+	ruta->id_ciudad_2 = strcpy(malloc(strlen(id_ciudad_2) + 1), id_ciudad_2);
+	ruta->puntaje = strtoul(puntaje, NULL, 10);
 	ruta->distancia = atof(distancia);
-	ruta->puntaje = (unsigned long int) puntaje;
 	return ruta;
 }
 
 void destruir_ruta(void* dato){
+    if (dato){
+        ruta_t* ruta = dato;
+        free(ruta->id);
+        free(ruta->id_ciudad_1);
+        free(ruta->id_ciudad_2);
+    }
     free(dato);
 }
 
@@ -179,32 +183,92 @@ hash_t* procesar_archivo_rutas(){
     return hash_rutas;
 }
 
+/* Función que genera un archivo KML */
+void generar_archivo_kml(char* nombre_archivo) {
+	FILE* archivo_kml = fopen(nombre_archivo, "w");
+    if (!archivo_kml) return;
+	
+	fputs("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n", archivo_kml);
+	fputs("<kml xmlns=\"http://earth.google.com/kml/2.1\">\n", archivo_kml);
+	fputs("\t<Document>\n", archivo_kml);
+	
+	// Parte del medio
+	
+	fputs("\t</Document>\n", archivo_kml);
+	fputs("</kml>\n", archivo_kml);
+	
+	fclose(archivo_kml);
+	return;
+}
 
-// Para probar los hashes
-int main(){
+/* Función que realiza la selección de las rutas que conecten todas las
+ * ciudades maximizando la cantidad de gente favorecida y considerando
+ * el largo de cada ruta */
+void todas_ciudades_conectadas(grafo_t* grafo, hash_t* hash_ciudades, hash_t* hash_rutas) {
+    //encontrar_rutas(hash_ciudades, hash_rutas);
+	generar_archivo_kml("red.kml");
+	return;
+}
+
+/* Función que realiza selección de caminos entre ciudades para abastecer
+ * de energía eléctrica a todas las estaciones usando un árbol de tendido
+ * mínimo, a partir del subconjunto de rutas como resultado de la función
+ * todas_ciudades_conectadas() */
+void arbol_tendido_minimo(grafo_t* grafo) {
+	generar_archivo_kml("tendido.kml");
+	return;
+}
+
+/* Función que realiza la obtención de rutas eficientes entre dos ciudades
+ * y exporta el resultado a un mapa usando el formato KML */
+void obtencion_rutas_eficientes(grafo_t* grafo) {
+	generar_archivo_kml("ruta.kml");
+	return;
+}
+
+int main(void){
     hash_t* hash_ciudades = procesar_archivo_ciudades();
     hash_iter_t* iter = hash_iter_crear(hash_ciudades);
-    int i = 1;
-    printf ("Prueba ciudades:\n");
+    int i = 0;
+    printf ("-Prueba ciudades:");
     while (!hash_iter_al_final(iter)){
-        printf ("%i. %s\n", i, hash_iter_ver_actual(iter));
         hash_iter_avanzar(iter);
         i++;
     }
+    printf (" %i ciudades\n", i);
     hash_iter_destruir(iter);
-    hash_destruir(hash_ciudades);
 
     hash_t* hash_rutas = procesar_archivo_rutas();
     iter = hash_iter_crear(hash_rutas);
-    i = 1;
-    printf ("\nPrueba rutas:\n");
+    i = 0;
+    printf ("-Prueba rutas:");
     while (!hash_iter_al_final(iter)){
-        printf ("%i. %s\n", i, hash_iter_ver_actual(iter));
         hash_iter_avanzar(iter);
         i++;
     }
+    printf (" %i rutas\n", i);
     hash_iter_destruir(iter);
 	grafo_t* grafo = grafo_crear(hash_ciudades, hash_rutas);
+
+    //    Para imprimir la matriz  //
+    for (i = 0; i < 1444; i++){
+        if (i % 38 == 0 && i != 0) printf ("  .%i\n", i/38);
+        if (grafo->matriz[i]){
+            if (strlen((grafo->matriz[i])->id) == 1)
+                printf (" %s ", (grafo->matriz[i])->id);
+            else if (strlen((grafo->matriz[i])->id) == 2)
+                printf ("%s ", (grafo->matriz[i])->id);
+            else
+                printf ("%s", (grafo->matriz[i])->id);
+        }
+        else printf (" 0 ");
+    }
+    printf ("  .%i\n", i/38);
+
+	todas_ciudades_conectadas(grafo, hash_ciudades, hash_rutas);
+	arbol_tendido_minimo(grafo);
+	obtencion_rutas_eficientes(grafo);
+	hash_destruir(hash_ciudades);
     hash_destruir(hash_rutas);
 	grafo_destruir(grafo);
     return 0;
