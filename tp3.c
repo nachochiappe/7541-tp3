@@ -11,7 +11,7 @@
 struct grafo {
 	size_t vertices;
 	size_t aristas;
-	ruta_t* matriz;
+	ruta_t** matriz;
 };
 
 struct ciudad{
@@ -19,7 +19,7 @@ struct ciudad{
     char* nombre;
     double longitud;
     double latitud;
-    unsigned int provincia;
+    unsigned long int provincia;
     unsigned long int habitantes;
 };
 
@@ -34,21 +34,24 @@ struct ruta{
 grafo_t* grafo_crear(hash_t* hash_ciudades, hash_t* hash_rutas) {
 	grafo_t* grafo = malloc(sizeof(grafo_t));
 	if (!grafo) return NULL;
-	int cantidad_vertices = hash_cantidad(hash_ciudades);
-	ruta_t* matriz = malloc(sizeof(ruta_t) * cantidad_vertices);
+	size_t cantidad_vertices = hash_cantidad(hash_ciudades);
+	ruta_t** matriz = malloc(sizeof(ruta_t*) * cantidad_vertices);
 	if (!matriz) return NULL;
 	for (int i = 0; i < cantidad_vertices; i++) {
-		matriz[i] = malloc(sizeof(ruta_t) * cantidad_vertices);
+		matriz[i] = malloc(sizeof(ruta_t*) * cantidad_vertices);
 		if (!matriz[i]) return NULL;
-		for (int j = 0; j < cantidad_vertices; j++) {
+		/*for (int j = 0; j < cantidad_vertices; j++) {
 			// Dejo la matriz en NULL
 			matriz[i][j] = NULL;
-		}
+		}*/
 	}
-	iter = hash_iter_crear(hash_rutas);
+	hash_iter_t* iter = hash_iter_crear(hash_rutas);
 	while (!hash_iter_al_final(iter)){
-		ruta_t* ruta = hash_iter_ver_actual(iter));
-		matriz[(ruta->id_ciudad_1) - 1][(ruta->id_ciudad_2) - 1] = ruta;
+		ruta_t* ruta = hash_obtener(hash_rutas, hash_iter_ver_actual(iter));
+		printf("%i\n", atoi(ruta->id));
+		printf("%i\n", atoi(ruta->id_ciudad_1));
+		printf("%i\n", atoi(ruta->id_ciudad_2));
+		matriz[atoi(ruta->id_ciudad_1) - 1][atoi(ruta->id_ciudad_2) - 1] = *ruta;
 		grafo->aristas++;
 		hash_iter_avanzar(iter);
 	}
