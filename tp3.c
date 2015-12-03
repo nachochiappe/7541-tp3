@@ -48,6 +48,8 @@ grafo_t* grafo_crear(hash_t* hash_ciudades, hash_t* hash_rutas) {
 		size_t id_ciudad_2 = strtoul(ruta->id_ciudad_2, NULL, 10);
 		// La forma de acceder a (x, y) en la matriz es: (x - 1) * cant_columnas + (y - 1)
 		matriz[(id_ciudad_1 - 1) * cantidad_vertices + (id_ciudad_2 - 1)] = ruta;
+		// Es un grafo no dirigido, deben estar las rutas también en dirección contraria
+		matriz[(id_ciudad_2 - 1) * cantidad_vertices + (id_ciudad_1 - 1)] = ruta;
 		grafo->aristas++;
 		hash_iter_avanzar(iter);
 	}
