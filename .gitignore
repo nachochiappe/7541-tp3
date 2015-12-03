@@ -38,3 +38,6 @@
 *.synctex
 informe.txt
 *.synctex.gz
+
+# Salida del programa
+*.kml
