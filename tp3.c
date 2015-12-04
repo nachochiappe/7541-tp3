@@ -203,7 +203,7 @@ void imprimir_en_archivo(FILE* archivo_kml, ciudad_t* ciudad){
 }
 
 /* Función que genera un archivo KML */
-void generar_archivo_kml(char* nombre_archivo, hash_t* hash_ciudades, cola_t* camino_rutas) {
+void generar_archivo_kml(char* nombre_archivo, hash_t* hash_ciudades, lista_t* camino_rutas) {
 	FILE* archivo_kml = fopen(nombre_archivo, "w");
 	if (!archivo_kml) return;
 	
@@ -215,8 +215,9 @@ void generar_archivo_kml(char* nombre_archivo, hash_t* hash_ciudades, cola_t* ca
 	if (camino_rutas){
 		pila_t* ciudad_actual = pila_crear();
 		pila_apilar(ciudad_actual, PRIMER_CIUDAD);
-		while (!cola_esta_vacia(camino_rutas)){
-			ruta_t* ruta = cola_desencolar(camino_rutas);
+		lista_iter_t* camino_rutas_iter = lista_iter_crear(camino_rutas);
+		while (!lista_iter_al_final(camino_rutas_iter)){
+			ruta_t* ruta = lista_iter_ver_actual(camino_rutas_iter);
 			ciudad_t* ciudad_1 = hash_obtener(hash_ciudades, (char*) pila_ver_tope(ciudad_actual));
 			ciudad_t* ciudad_2;
 			if (strcmp(pila_ver_tope(ciudad_actual), ruta->id_ciudad_1) == 0)
@@ -233,7 +234,9 @@ void generar_archivo_kml(char* nombre_archivo, hash_t* hash_ciudades, cola_t* ca
 			if (strcmp(pila_ver_tope(ciudad_actual), ruta->id_ciudad_1) == 0)
 				pila_apilar(ciudad_actual, ruta->id_ciudad_2);
 			else pila_apilar(ciudad_actual, ruta->id_ciudad_1);
+			lista_iter_avanzar(camino_rutas_iter);
 		}
+		lista_iter_destruir(camino_rutas_iter);
 		pila_destruir(ciudad_actual);
 	}
 	
@@ -244,8 +247,8 @@ void generar_archivo_kml(char* nombre_archivo, hash_t* hash_ciudades, cola_t* ca
 	return;
 }
 
-void encontrar_rutas(grafo_t* grafo, hash_t* hash_ciudades_visitadas, cola_t* rutas_a_tomar, int n_fila){
-	if (hash_cantidad(hash_ciudades_visitadas) == 37) return; // Recorrio todas las ciudades (la ultima no la incluye en el hash, por eso son 37)
+lista_t* encontrar_rutas(grafo_t* grafo, hash_t* hash_ciudades_visitadas, lista_t* rutas_a_tomar, int n_fila){
+	if (hash_cantidad(hash_ciudades_visitadas) == 37) return rutas_a_tomar; // Recorrio todas las ciudades (la ultima no la incluye en el hash, por eso son 37)
 	heap_t* heap_mejor_ruta = heap_crear(cmp);
 	for (int i = (n_fila - 1) * 38; i < n_fila * 38; i++){
 		ruta_t* ruta = grafo->matriz[i];
@@ -263,25 +266,25 @@ void encontrar_rutas(grafo_t* grafo, hash_t* hash_ciudades_visitadas, cola_t* ru
 	char ciudad_visitada[4];
 	sprintf (ciudad_visitada, "%i", n_fila);
 	hash_guardar(hash_ciudades_visitadas, ciudad_visitada, NULL);
-	cola_encolar(rutas_a_tomar, mejor_ruta);
+	lista_insertar_ultimo(rutas_a_tomar, mejor_ruta);
 	if (n_fila != atoi(mejor_ruta->id_ciudad_1))
 		encontrar_rutas(grafo, hash_ciudades_visitadas, rutas_a_tomar, atoi(mejor_ruta->id_ciudad_1));
 	else
 		encontrar_rutas(grafo, hash_ciudades_visitadas, rutas_a_tomar, atoi(mejor_ruta->id_ciudad_2));
 	heap_destruir(heap_mejor_ruta, NULL);
+	return rutas_a_tomar;
 }
 
 /* Función que realiza la selección de las rutas que conecten todas las
  * ciudades maximizando la cantidad de gente favorecida y considerando
  * el largo de cada ruta */
-void todas_ciudades_conectadas(grafo_t* grafo, hash_t* hash_ciudades, hash_t* hash_rutas) {
+lista_t* todas_ciudades_conectadas(grafo_t* grafo, hash_t* hash_ciudades, hash_t* hash_rutas) {
 	hash_t* hash_ciudades_visitadas = hash_crear(NULL); // Hash que guarda las ciudades visitadas
-	cola_t* rutas_a_tomar = cola_crear();
+	lista_t* rutas_a_tomar = lista_crear();
 	encontrar_rutas(grafo, hash_ciudades_visitadas, rutas_a_tomar, N_PRIMER_CIUDAD);
 	hash_destruir(hash_ciudades_visitadas);
 	generar_archivo_kml("red.kml", hash_ciudades, rutas_a_tomar);
-	cola_destruir(rutas_a_tomar, NULL);
-	return;
+	return rutas_a_tomar;
 }
 
 /* Función que realiza selección de caminos entre ciudades para abastecer
@@ -293,10 +296,61 @@ void arbol_tendido_minimo(grafo_t* grafo, hash_t* hash_ciudades) {
 	return;
 }
 
+/* Función que buscar todos los adyacentes al vértice pasado como parámetro */
+lista_t* obtener_adyacentes(grafo_t* grafo, char* vertice) {
+	lista_t* adyacentes = lista_crear();
+	for (size_t i = 0; i < grafo->vertices; i++) {
+		ruta_t* ruta = grafo->matriz[(strtoul(vertice, NULL, 10) - 1) * grafo->vertices + (i - 1)];
+		if (ruta) lista_insertar_ultimo(adyacentes, ruta);
+	}
+	return adyacentes;
+}
+
 /* Función que realiza la obtención de rutas eficientes entre dos ciudades
  * y exporta el resultado a un mapa usando el formato KML */
-void obtencion_rutas_eficientes(grafo_t* grafo, hash_t* hash_ciudades) {
-	generar_archivo_kml("ruta.kml", hash_ciudades, NULL);
+void obtencion_rutas_eficientes(grafo_t* grafo, lista_t* rutas, hash_t* hash_ciudades) {
+	char* id_ciudad_1 = malloc(sizeof(char));
+	char* id_ciudad_2 = malloc(sizeof(char));
+	printf("Ingrese el ID de la primera ciudad: ");
+	fgets(id_ciudad_1, sizeof(id_ciudad_1), stdin);
+	printf("Ingrese el ID de la segunda ciudad: ");
+	fgets(id_ciudad_2, sizeof(id_ciudad_2), stdin);
+	lista_t* rutas_a_tomar = lista_crear();
+	hash_t* visitados = hash_crear(NULL);
+	ruta_t* ruta = lista_ver_primero(rutas);
+	hash_guardar(visitados, ruta->id, ruta);
+	cola_t* cola = cola_crear();
+	cola_encolar(cola, lista_ver_primero(rutas));
+	ruta->id_ciudad_1 = strcpy(malloc(strlen(ruta->id_ciudad_1) + 1), ruta->id_ciudad_1);
+	printf("sizeof: %zu\n", sizeof(id_ciudad_1));
+	printf("sizeof: %zu\n", sizeof(ruta->id_ciudad_1));
+	printf("strlen: %zu\n", strlen(id_ciudad_1));
+	printf("strlen: %zu\n", strlen(ruta->id_ciudad_1));
+	while (!cola_esta_vacia(cola)) {
+		ruta = cola_desencolar(cola);
+		if (strcmp(ruta->id_ciudad_1, id_ciudad_1) == 0) {
+			lista_insertar_ultimo(rutas_a_tomar, ruta);
+		}
+		if (strcmp(ruta->id_ciudad_2, id_ciudad_2) == 0) {
+			lista_insertar_ultimo(rutas_a_tomar, ruta);
+			break;
+		}
+		lista_t* adyacentes = obtener_adyacentes(grafo, ruta->id_ciudad_1);
+		lista_iter_t* adyacentes_iter = lista_iter_crear(adyacentes);
+		while (!lista_iter_al_final(adyacentes_iter)) {
+			ruta_t* ruta_actual = lista_iter_ver_actual(adyacentes_iter);
+			if (!hash_pertenece(visitados, ruta_actual->id)) {
+				hash_guardar(visitados, ruta_actual->id, ruta_actual);
+				cola_encolar(cola, ruta_actual);
+			}
+			lista_iter_avanzar(adyacentes_iter);
+		}
+		lista_iter_destruir(adyacentes_iter);
+		lista_destruir(adyacentes, NULL);
+	}
+	generar_archivo_kml("ruta.kml", hash_ciudades, rutas_a_tomar);
+	free(id_ciudad_1);
+	free(id_ciudad_2);
 	return;
 }
 
@@ -339,9 +393,10 @@ int main(void){
 	}
 	printf ("  .%i\n", i/38);*/
 
-	todas_ciudades_conectadas(grafo, hash_ciudades, hash_rutas);
+	lista_t* rutas_a_tomar = todas_ciudades_conectadas(grafo, hash_ciudades, hash_rutas);
 	arbol_tendido_minimo(grafo, hash_ciudades);
-	obtencion_rutas_eficientes(grafo, hash_ciudades);
+	obtencion_rutas_eficientes(grafo, rutas_a_tomar, hash_ciudades);
+	lista_destruir(rutas_a_tomar, NULL);
 	hash_destruir(hash_ciudades);
 	hash_destruir(hash_rutas);
 	grafo_destruir(grafo);
