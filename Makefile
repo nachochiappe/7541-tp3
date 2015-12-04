@@ -4,7 +4,7 @@
 EXEC=tp
 CC=gcc
 CFLAGS= -std=c99 -g -Wall -Wconversion -Wtype-limits -pedantic -Werror
-OBJECTS=hash.o lectura.o lista.o parser.o tp3.o
+OBJECTS=cola.o hash.o heap.o lectura.o lista.o parser.o pila.o tp3.o
 VALGRIND= valgrind --leak-check=full --track-origins=yes
 
 all: $(EXEC)
