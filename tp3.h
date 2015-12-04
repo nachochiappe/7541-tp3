@@ -7,6 +7,7 @@
 #include "heap.h"
 #include "cola.h"
 #include "pila.h"
+#include "lista.h"
 
 typedef struct grafo grafo_t;
 typedef struct ciudad ciudad_t;
