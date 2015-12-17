@@ -67,36 +67,6 @@ cmp_func_t cmp_mejor_ruta = &comparar_ruta;
 *     FUNCIONES AUXILIARES    *
 ******************************/
 
-// Función que crea un grafo representado como matriz de adyacencia a partir de un hash de ciudades y uno de rutas.
-// Pre: los hashes de ciudades y rutas existen.
-// Post: devuelve el grafo creado, NULL si falló.
-grafo_t* grafo_crear(hash_t* hash_ciudades, hash_t* hash_rutas) {
-	grafo_t* grafo = malloc(sizeof(grafo_t));
-	if (!grafo) return NULL;
-	size_t cantidad_vertices = hash_cantidad(hash_ciudades);
-	// Creo una matriz de |V| x |V| (uso calloc para que no tire errores valgrind de inicializacion)
-	ruta_t** matriz = calloc(cantidad_vertices * cantidad_vertices, sizeof(ruta_t));
-	if (!matriz) return NULL;
-	/*for (int i = 0; i < cantidad_vertices * cantidad_vertices; i++){
-		matriz[i] = 0;
-	}*/
-	hash_iter_t* iter = hash_iter_crear(hash_rutas);
-	while (!hash_iter_al_final(iter)){
-		ruta_t* ruta = hash_obtener(hash_rutas, hash_iter_ver_actual(iter));
-		size_t id_ciudad_1 = strtoul(ruta->id_ciudad_1, NULL, 10);
-		size_t id_ciudad_2 = strtoul(ruta->id_ciudad_2, NULL, 10);
-		// La forma de acceder a (x, y) en la matriz es: (x - 1) * cant_columnas + (y - 1)
-		matriz[(id_ciudad_1 - 1) * cantidad_vertices + (id_ciudad_2 - 1)] = ruta;
-		matriz[(id_ciudad_2 - 1) * cantidad_vertices + (id_ciudad_1 - 1)] = ruta; // Tambien ponemos los valores del otro lado de la 'diagonal' de la matriz, dado a que valen los caminos de ida y vuelta (si una ruta va de ciudad 1 a ciudad 2, tambien vale de ciudad 2 a ciudad 1).
-		grafo->aristas++;
-		hash_iter_avanzar(iter);
-	}
-	hash_iter_destruir(iter);
-	grafo->vertices = cantidad_vertices;
-	grafo->matriz = matriz;
-	return grafo;
-}
-
 // Función que destruye un grafo.
 // Pre: el grafo existe.
 // Post: se destruyó el grafo y se liberó su memoria.
@@ -255,6 +225,35 @@ hash_t* procesar_archivo_rutas(){
 	free(linea_ruta);
 	fclose(csv_rutas);
 	return hash_rutas;
+}
+
+// Función que crea un grafo representado como matriz de adyacencia a partir de un hash de ciudades y uno de rutas.
+// Pre: los hashes de ciudades y rutas existen.
+// Post: devuelve el grafo creado, NULL si falló.
+grafo_t* grafo_crear(hash_t* hash_ciudades, hash_t* hash_rutas) {
+	grafo_t* grafo = malloc(sizeof(grafo_t));
+	if (!grafo) return NULL;
+	size_t cantidad_vertices = hash_cantidad(hash_ciudades);
+	// Creo una matriz de |V| x |V| (uso calloc para que no tire errores valgrind de inicializacion)
+	ruta_t** matriz = calloc(cantidad_vertices * cantidad_vertices, sizeof(ruta_t));
+	if (!matriz) return NULL;
+	hash_iter_t* iter = hash_iter_crear(hash_rutas);
+	while (!hash_iter_al_final(iter)){
+		ruta_t* ruta = hash_obtener(hash_rutas, hash_iter_ver_actual(iter));
+		size_t id_ciudad_1 = strtoul(ruta->id_ciudad_1, NULL, 10);
+		size_t id_ciudad_2 = strtoul(ruta->id_ciudad_2, NULL, 10);
+		// La forma de acceder a (x, y) en la matriz es: (x - 1) * cant_columnas + (y - 1)
+		matriz[(id_ciudad_1 - 1) * cantidad_vertices + (id_ciudad_2 - 1)] = ruta;
+		// Tambien ponemos los valores del otro lado de la 'diagonal' de la matriz, dado a que valen los caminos
+		// de ida y vuelta (si una ruta va de ciudad 1 a ciudad 2, tambien vale de ciudad 2 a ciudad 1).
+		matriz[(id_ciudad_2 - 1) * cantidad_vertices + (id_ciudad_1 - 1)] = ruta;
+		grafo->aristas++;
+		hash_iter_avanzar(iter);
+	}
+	hash_iter_destruir(iter);
+	grafo->vertices = cantidad_vertices;
+	grafo->matriz = matriz;
+	return grafo;
 }
 
 /* Función que genera un archivo KML */
